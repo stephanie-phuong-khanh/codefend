@@ -1,0 +1,89 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  githubUserId  String   @unique
+  githubOauthToken String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orgs      OrgMembership[]
+}
+
+model Organization {
+  id                    Int      @id @default(autoincrement())
+  name                  String
+  githubOrgId           String   @unique
+  githubInstallationId  String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  members               OrgMembership[]
+  repositories          Repository[]
+}
+
+model OrgMembership {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  organizationId Int
+  role           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId])
+}
+
+model Repository {
+  id                 Int          @id @default(autoincrement())
+  name               String
+  githubRepoId       String       @unique
+  organizationId     Int
+  dependenciesPath   String?      // Path to dependencies file (e.g., package.json)
+  setupCommand       String?      // Command to set up the project
+  compileCommand     String?      // Command to compile the project
+  testCommand        String?      // Command to run tests
+  isConfigured       Boolean      @default(false) // Flag to indicate if build/test is configured
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  scans              Scan[]       // Relation to scans
+}
+
+model Scan {
+  id             Int          @id @default(autoincrement())
+  repositoryId   Int
+  status         String       // e.g., "pending", "running", "completed", "failed"
+  startedAt      DateTime     @default(now())
+  completedAt    DateTime?
+  results        ScanResult[]
+  repository     Repository   @relation(fields: [repositoryId], references: [id])
+}
+
+model ScanResult {
+  id             Int          @id @default(autoincrement())
+  scanId         Int
+  issueType      String       // Type of issue found
+  severity       String       // e.g., "low", "medium", "high", "critical"
+  filePath       String       // Path to the file with the issue
+  lineNumber     Int?         // Line number where the issue was found
+  description    String       // Description of the issue
+  recommendation String?      // Recommendation for fixing the issue
+  createdAt      DateTime     @default(now())
+  scan           Scan         @relation(fields: [scanId], references: [id])
+}
